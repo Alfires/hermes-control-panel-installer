@@ -59,8 +59,17 @@ provision_brokers() {
     log "generated root-only host-control key"
   fi
   chmod 600 "$PROTECTED_DIR/hostctl.key"
-  [[ -f "$PROTECTED_DIR/critical-packages.json" ]] || printf '{}\n' >"$PROTECTED_DIR/critical-packages.json"
+  if [[ ! -s "$PROTECTED_DIR/critical-packages.json" ]]; then
+    # Curated critical-package floor (reviewed list mirrored in src/lib/registry.php).
+    # The broker flags any of these whose apt candidate is "(none)". Values are
+    # only finding explanation text — never secrets. Kept only when absent/empty
+    # so an owner-edited rules file is never overwritten on reinstall.
+    cat >"$PROTECTED_DIR/critical-packages.json" <<'RULES'
+{"ssh":"security-critical: must remain installable","sudo":"security-critical: must remain installable","curl":"security-critical: must remain installable","wget":"security-critical: must remain installable","git":"security-critical: must remain installable","docker":"security-critical: must remain installable","podman":"security-critical: must remain installable","systemd":"security-critical: must remain installable","iptables":"security-critical: must remain installable","nftables":"security-critical: must remain installable","openssl":"security-critical: must remain installable"}
+RULES
+  fi
   chmod 600 "$PROTECTED_DIR/critical-packages.json"
+  python3 -m json.tool "$PROTECTED_DIR/critical-packages.json" >/dev/null || log "WARN: critical-package rules are not valid JSON"
 
   install -o root -g root -m 0644 "$INSTALL_DIR/hostctl/panel-hostctl.service" /etc/systemd/system/panel-hostctl.service
   install -o root -g root -m 0644 "$INSTALL_DIR/hostctl/panel-socket-relay.service" /etc/systemd/system/panel-socket-relay.service
