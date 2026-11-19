@@ -1,5 +1,10 @@
+# Reference template only. The installer clones the application repo and uses
+# ITS docker-compose.yml; this file is kept as documentation of the two-service
+# shape. The gateway is behind a profile so a plain `docker compose up -d`
+# starts only the panel and can never open a second 8642/9119 listener.
 services:
   hermes:
+    profiles: ["standalone"]
     image: nousresearch/hermes-agent:latest
     container_name: hermes-agent
     restart: unless-stopped
@@ -11,12 +16,6 @@ services:
       - "9119:9119"
     volumes:
       - ./data/hermes:/opt/data
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8642/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
 
   webui:
     build: .
@@ -24,13 +23,15 @@ services:
     container_name: hermes-panel
     restart: unless-stopped
     env_file: ./panel.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "${WEBUI_PORT:?set WEBUI_PORT}:8080"
+      - "${WEBUI_PORT:-9120}:8080"
     volumes:
       - ./data:/var/lib/panel
       - ./data/stt-models:/opt/stt/models:ro
-    depends_on:
-      - hermes
+      - /opt/panel-sockets:/run/panel-sockets
+      - /opt/panel-secrets/hostctl.key:/run/hostctl-src/hostctl.key:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health.php"]
       interval: 30s
